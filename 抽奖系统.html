@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人员名单抽奖系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+
+        body {
+            background-color: #f5f7fa;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .title {
+            text-align: center;
+            color: #e63946;
+            margin: 20px 0;
+            font-size: 28px;
+        }
+
+        .container {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+        }
+
+        .input-box {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 15px;
+            resize: vertical;
+        }
+
+        .prize-setting {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .prize-setting input {
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 15px;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            background-color: #457b9d;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background-color: #1d3557;
+        }
+
+        button.danger {
+            background-color: #e63946;
+        }
+
+        button.success {
+            background-color: #2a9d8f;
+        }
+
+        button.export {
+            background-color: #f4a261;
+        }
+
+        button.export:hover {
+            background-color: #e76f51;
+        }
+
+        button:disabled {
+            background-color: #999;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .result-box {
+            padding: 20px;
+            background-color: #fff1e6;
+            border-radius: 8px;
+            min-height: 100px;
+            text-align: center;
+        }
+
+        .winner {
+            font-size: 28px;
+            font-weight: bold;
+            color: #e63946;
+            margin: 15px 0;
+            height: 40px;
+            line-height: 40px;
+        }
+
+        .winner-animation {
+            animation: flash 0.8s ease-in-out infinite alternate;
+        }
+
+        @keyframes flash {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0.8; transform: scale(1.1); }
+        }
+
+        .rolling {
+            animation: roll 0.1s linear infinite;
+        }
+
+        @keyframes roll {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+            100% { transform: translateY(0); }
+        }
+
+        .tip {
+            color: #666;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .multiple-winner {
+            margin-top: 10px;
+            font-size: 20px;
+            color: #e63946;
+            opacity: 0;
+            animation: fadeIn 0.5s forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .prize-name {
+            font-size: 22px;
+            color: #1d3557;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="title">🎉 人员名单抽奖系统 🎉</h1>
+
+    <div class="container">
+        <div class="input-box">
+            <label>📋 人员名单（一行输入一个名字）</label>
+            <textarea id="nameList" placeholder="请输入/粘贴人员名单
+例如：
+张三
+李四
+王五"></textarea>
+        </div>
+
+        <div class="input-box">
+            <label>🏅 奖项设置</label>
+            <div class="prize-setting">
+                <input type="text" id="prizeName" placeholder="请输入奖项名称（例如：一等奖、特等奖、幸运奖）" value="幸运奖">
+                <input type="number" id="prizeCount" min="1" placeholder="中奖人数" value="1">
+            </div>
+        </div>
+
+        <div class="btn-group">
+            <button id="drawOneBtn" onclick="drawByPrize()" class="success">🎯 按奖项抽取中奖者</button>
+            <button onclick="resetDraw()" class="danger">🔄 重置抽奖</button>
+            <button onclick="clearAll()">🗑️ 清空名单</button>
+            <button onclick="exportWinners()" class="export">📤 导出中奖名单</button>
+        </div>
+
+        <div class="result-box">
+            <div id="prizeTitle" class="prize-name"></div>
+            <h3>🏆 中奖结果</h3>
+            <div id="result" class="winner">等待抽奖...</div>
+            <div id="multipleResult"></div>
+            <div class="tip" id="tip"></div>
+        </div>
+    </div>
+
+    <script>
+        let isDrawing = false;
+        let rollTimer = null;
+        let winnerRecords = []; // 【优化】存储：奖项+姓名（用于导出区分）
+
+        // 获取名单（自动排除已中奖）
+        function getNameArray() {
+            let text = document.getElementById('nameList').value.trim();
+            if (!text) {
+                alert('请先输入人员名单！');
+                return [];
+            }
+            let allNames = text.split('\n').filter(item => item.trim() !== '');
+            // 从记录中取出已中奖姓名
+            let drawnNames = winnerRecords.map(item => item.name);
+            let available = allNames.filter(name => !drawnNames.includes(name.trim()));
+            return available;
+        }
+
+        // 获取奖项设置
+        function getPrizeSetting() {
+            let name = document.getElementById('prizeName').value.trim() || '幸运奖';
+            let count = parseInt(document.getElementById('prizeCount').value);
+            if (isNaN(count) || count < 1) {
+                alert('请输入有效的中奖人数！');
+                return null;
+            }
+            return { name, count };
+        }
+
+        // 停止动画
+        function stopRollAnimation() {
+            clearInterval(rollTimer);
+            rollTimer = null;
+            document.getElementById('result').classList.remove('rolling');
+            document.getElementById('drawOneBtn').disabled = false;
+            isDrawing = false;
+        }
+
+        // 滚动动画
+        function rollAnimation(names, duration = 2000) {
+            isDrawing = true;
+            document.getElementById('drawOneBtn').disabled = true;
+            const dom = document.getElementById('result');
+            dom.classList.add('rolling');
+            dom.classList.remove('winner-animation');
+
+            let start = Date.now();
+            let speed = 50;
+
+            rollTimer = setInterval(() => {
+                dom.innerText = names[Math.floor(Math.random() * names.length)];
+                let elapsed = Date.now() - start;
+                if (elapsed > duration * 0.5) speed = 100;
+                if (elapsed > duration * 0.8) speed = 200;
+                if (elapsed >= duration) stopRollAnimation();
+            }, speed);
+        }
+
+        // 按奖项抽奖
+        function drawByPrize() {
+            if (isDrawing) return;
+            let available = getNameArray();
+            if (available.length === 0) {
+                alert('所有人员已全部中奖！');
+                return;
+            }
+
+            let prize = getPrizeSetting();
+            if (!prize) return;
+
+            // 人数超出限制提醒
+            if (prize.count > available.length) {
+                alert(`⚠️ 可抽奖人数不足！
+当前剩余可抽：${available.length} 人
+你设置的人数：${prize.count} 人`);
+                return;
+            }
+
+            document.getElementById('result').innerText = '';
+            document.getElementById('multipleResult').innerHTML = '';
+            document.getElementById('tip').innerText = '';
+            document.getElementById('prizeTitle').innerText = `🏅 ${prize.name}`;
+
+            isDrawing = true;
+            document.getElementById('drawOneBtn').disabled = true;
+
+            if (prize.count === 1) {
+                rollAnimation(available);
+                setTimeout(() => {
+                    let winner = available[Math.floor(Math.random() * available.length)];
+                    document.getElementById('result').innerText = winner;
+                    document.getElementById('result').classList.add('winner-animation');
+                    document.getElementById('tip').innerText = `🎉 恭喜 ${winner} 获得${prize.name}！`;
+                    
+                    // 【优化】保存 奖项+姓名
+                    winnerRecords.push({
+                        prize: prize.name,
+                        name: winner
+                    });
+                }, 2000);
+            } else {
+                let shuffled = [...available].sort(() => Math.random() - 0.5);
+                let winners = shuffled.slice(0, prize.count);
+                let idx = 0;
+
+                function show() {
+                    if (idx >= prize.count) {
+                        document.getElementById('tip').innerText = `🎉 恭喜以上 ${prize.count} 人获得${prize.name}！`;
+                        stopRollAnimation();
+                        
+                        // 【优化】批量保存 奖项+姓名
+                        winners.forEach(name => {
+                            winnerRecords.push({
+                                prize: prize.name,
+                                name: name
+                            });
+                        });
+                        return;
+                    }
+                    let div = document.createElement('div');
+                    div.className = 'multiple-winner';
+                    div.style.animationDelay = idx * 0.3 + 's';
+                    div.innerText = `${idx + 1}. ${winners[idx]}`;
+                    document.getElementById('multipleResult').appendChild(div);
+                    idx++;
+                    setTimeout(show, 500);
+                }
+                setTimeout(show, 300);
+            }
+        }
+
+        // 重置抽奖
+        function resetDraw() {
+            stopRollAnimation();
+            document.getElementById('result').innerText = '等待抽奖...';
+            document.getElementById('result').classList.remove('winner-animation', 'rolling');
+            document.getElementById('multipleResult').innerHTML = '';
+            document.getElementById('tip').innerText = '';
+            document.getElementById('prizeTitle').innerText = '';
+        }
+
+        // 清空全部
+        function clearAll() {
+            stopRollAnimation();
+            document.getElementById('nameList').value = '';
+            document.getElementById('prizeName').value = '幸运奖';
+            document.getElementById('prizeCount').value = '1';
+            winnerRecords = []; // 清空中奖记录
+            resetDraw();
+        }
+
+        // ========== 【优化导出】带奖项的中奖名单 ==========
+        function exportWinners() {
+            if (winnerRecords.length === 0) {
+                alert('暂无中奖名单可导出！');
+                return;
+            }
+
+            // 生成带奖项的内容
+            let content = "中奖名单（按抽奖顺序）\n";
+            content += "========================\n";
+            winnerRecords.forEach((item, index) => {
+                content += `${index + 1}. ${item.prize}：${item.name}\n`;
+            });
+
+            let blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            let url = URL.createObjectURL(blob);
+            let a = document.createElement('a');
+
+            let date = new Date();
+            let timeStr = date.toLocaleString().replace(/[^\d]/g, '');
+            a.download = `中奖名单_带奖项_${timeStr}.txt`;
+            a.href = url;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            alert('✅ 带奖项的中奖名单导出成功！');
+        }
+    </script>
+</body>
+</html>
